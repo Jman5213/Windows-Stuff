@@ -84,7 +84,7 @@
    - [ ] Require Ctrl+Alt+Del before signing in
    - [ ] Limit local use of blank passwords to console only (Security Settings -> Local Policies -> Security Options -> Accounts: Limit...)
    - [ ] Do not allow anonymous enumeration of SAM accounts and shares (Network access: Do not all...)
-         - secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow anonymous enumeration of SAM accounts and shares
+      * secpol.msc > Security Settings > Local Policies > Security Options > Network access: Do not allow anonymous enumeration of SAM accounts and shares
    - [ ] Ty got too lazy to add the rest :/
 
 ## Registry Editor hives explained (if you ever need to use it)
