@@ -78,7 +78,7 @@
 - [ ] Check for suspicious programs running in Task Manager. (Go to task manager, either ctrl+alt+delete > task manager or win+r > “taskmgr” then look through the running files for suspicious ones.)
 - [ ] Update the computer last, just in case, Taskbar > Update or Settings.
 - [ ] Users can't change system time (somewhere in user or group policies)
-- [ ] Audit Security State Change (Security Settings > Local Policies > Advanced Audit Policy Configuration > System Audit Policies - Local Group Policy Object > Policy Change > System > Audit Security State Change)
+- [ ] Audit Security State Change: Success (and maybe Falure) (Security Settings > Local Policies > Advanced Audit Policy Configuration > System Audit Policies - Local Group Policy Object > Policy Change > System > Audit Security State Change)
 
 
 ## For updating browsers
