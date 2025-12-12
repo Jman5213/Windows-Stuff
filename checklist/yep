@@ -1,0 +1,11 @@
+# Windows Defender Advanced Threat Protection
+sc sdset Sense D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRC;;;BA)(A;;CCLCSWLOCRRC;;;AU)
+
+# Windows Security Service
+sc sdset SecurityHealthService D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRC;;;BA)(A;;CCLCSWLOCRRC;;;AU)
+
+
+Set-Service -Name Sense -StartupType Automatic
+Set-Service -Name SecurityHealthService -StartupType Automatic
+Start-Service Sense
+Start-Service SecurityHealthService
