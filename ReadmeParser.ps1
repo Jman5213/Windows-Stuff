@@ -10,6 +10,163 @@
     This parser handles common README formats from CyberPatriot competitions
 #>
 
+function Get-SafePreview {
+    <#
+    .SYNOPSIS
+        Safely gets a preview of text content, handling multi-byte characters
+    .PARAMETER Content
+        The content to preview
+    .PARAMETER MaxLength
+        Maximum length for preview (default: 200)
+    #>
+    param(
+        [string]$Content,
+        [int]$MaxLength = 200
+    )
+    
+    if (-not $Content) {
+        return ""
+    }
+    
+    if ($Content.Length -le $MaxLength) {
+        return $Content
+    }
+    
+    # Get substring safely, then trim to avoid breaking multi-byte sequences
+    try {
+        $preview = $Content.Substring(0, $MaxLength)
+        # Trim any trailing incomplete characters by removing last character if it's not alphanumeric
+        if ($preview.Length -gt 0 -and $preview[-1] -notmatch '[a-zA-Z0-9\s\.\,\;\:]') {
+            $preview = $preview.Substring(0, $preview.Length - 1)
+        }
+        return $preview
+    } catch {
+        # Fallback: just take first MaxLength characters safely
+        return $Content.Substring(0, [Math]::Min($MaxLength, $Content.Length))
+    }
+}
+
+function Test-ValidExtractedItem {
+    <#
+    .SYNOPSIS
+        Validates extracted items (usernames, software, services) against common filters
+    .PARAMETER ItemName
+        The item to validate
+    .PARAMETER ItemType
+        The type of item: 'username', 'software', or 'service'
+    .PARAMETER MinLength
+        Minimum length (default: 3)
+    .PARAMETER MaxLength
+        Maximum length (default: 100)
+    #>
+    param(
+        [string]$ItemName,
+        [string]$ItemType = 'generic',
+        [int]$MinLength = 3,
+        [int]$MaxLength = 100
+    )
+    
+    # Validation checks
+    if (-not $ItemName -or $ItemName.Length -lt $MinLength -or $ItemName.Length -gt $MaxLength) {
+        return $false
+    }
+    
+    # Define noise words for each type
+    $noiseWords = @{
+        'username' = @('user', 'account', 'password', 'standard', 'name', 'login', 'full', 'first', 'last', 'the', 'this', 'that', 'and', 'or', 'with')
+        'admin' = @('admin', 'administrator', 'account', 'password', 'user', 'the', 'this', 'that', 'and', 'or', 'with')
+        'software' = @('software', 'program', 'application', 'installed', 'allowed', 'authorized', 'permitted')
+        'service' = @('service', 'required', 'critical', 'running', 'started')
+    }
+    
+    # Get appropriate noise words for the type
+    $filterWords = if ($noiseWords.ContainsKey($ItemType)) {
+        $noiseWords[$ItemType]
+    } else {
+        @()
+    }
+    
+    # Check if item matches any noise word (case insensitive)
+    foreach ($word in $filterWords) {
+        if ($ItemName -match "^$word$") {
+            return $false
+        }
+    }
+    
+    return $true
+}
+
+function Clean-HtmlContent {
+    <#
+    .SYNOPSIS
+        Cleans HTML content and converts it to plain text
+    .PARAMETER HtmlContent
+        The HTML content to clean
+    #>
+    param(
+        [string]$HtmlContent
+    )
+    
+    if (-not $HtmlContent) {
+        return ""
+    }
+    
+    # Remove script and style tags first
+    $cleaned = $HtmlContent -replace '<script[^>]*>.*?</script>', ''
+    $cleaned = $cleaned -replace '<style[^>]*>.*?</style>', ''
+    
+    # Preserve common structural elements by adding newlines
+    $cleaned = $cleaned -replace '<br\s*/?>', "`n"
+    $cleaned = $cleaned -replace '<p\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</p>', "`n"
+    $cleaned = $cleaned -replace '<div\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</div>', "`n"
+    $cleaned = $cleaned -replace '<li\s*[^>]*>', "`n- "
+    $cleaned = $cleaned -replace '</li>', "`n"
+    $cleaned = $cleaned -replace '<h[1-6][^>]*>', "`n"
+    $cleaned = $cleaned -replace '</h[1-6]>', "`n"
+    $cleaned = $cleaned -replace '<tr\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</tr>', "`n"
+    
+    # Remove all remaining HTML tags
+    $cleaned = $cleaned -replace '<[^>]+>', ' '
+    
+    # Decode HTML entities
+    $cleaned = $cleaned -replace '&nbsp;', ' '
+    $cleaned = $cleaned -replace '&amp;', '&'
+    $cleaned = $cleaned -replace '&lt;', '<'
+    $cleaned = $cleaned -replace '&gt;', '>'
+    $cleaned = $cleaned -replace '&quot;', '"'
+    $cleaned = $cleaned -replace '&#39;', "'"
+    $cleaned = $cleaned -replace '&apos;', "'"
+    $cleaned = $cleaned -replace '&mdash;', '-'
+    $cleaned = $cleaned -replace '&ndash;', '-'
+    $cleaned = $cleaned -replace '&bull;', '•'
+    
+    # Handle numeric entities with validation
+    $cleaned = $cleaned -replace '&#(\d+);', {
+        param($match)
+        try {
+            $num = [int]$match.Groups[1].Value
+            # Validate range for 16-bit Unicode (0-65535), excluding surrogate pairs (0xD800-0xDFFF)
+            if ($num -ge 0 -and $num -le 65535 -and ($num -lt 0xD800 -or $num -gt 0xDFFF)) {
+                return [char]$num
+            } else {
+                return ' '  # Replace invalid entities with space
+            }
+        } catch {
+            return ' '  # Replace on conversion error
+        }
+    }
+    
+    # Clean up extra whitespace while preserving structure
+    $cleaned = $cleaned -replace '[ \t]+', ' '
+    $cleaned = $cleaned -replace ' *\n *', "`n"
+    $cleaned = $cleaned -replace '\n\s*\n\s*\n+', "`n`n"
+    
+    return $cleaned.Trim()
+}
+
 function Get-ShortcutTarget {
     <#
     .SYNOPSIS
@@ -59,25 +216,10 @@ function Download-WebContent {
         # Use Invoke-WebRequest to download the content
         $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30
         
-        # Try to extract text from HTML
-        $content = $response.Content
+        # Use the helper function to clean HTML
+        $content = Clean-HtmlContent -HtmlContent $response.Content
         
-        # Remove HTML tags for basic parsing
-        $content = $content -replace '<script[^>]*>.*?</script>', ''
-        $content = $content -replace '<style[^>]*>.*?</style>', ''
-        $content = $content -replace '<[^>]+>', "`n"
-        $content = $content -replace '&nbsp;', ' '
-        $content = $content -replace '&amp;', '&'
-        $content = $content -replace '&lt;', '<'
-        $content = $content -replace '&gt;', '>'
-        $content = $content -replace '&quot;', '"'
-        $content = $content -replace '&#39;', "'"
-        
-        # Clean up extra whitespace
-        $content = $content -replace '[ \t]+', ' '
-        $content = $content -replace '\n\s*\n\s*\n+', "`n`n"
-        
-        return $content.Trim()
+        return $content
     } catch {
         Write-Host "Error downloading content: $_" -ForegroundColor Red
         return $null
@@ -159,38 +301,121 @@ function Parse-CompetitionReadme {
                 
                 if ($response -eq 'Y' -or $response -eq 'y') {
                     Write-Host ""
-                    Write-Host "Please paste the README content below, then press Enter twice when done:" -ForegroundColor Yellow
-                    Write-Host "(Tip: Copy from the website, then paste here with Ctrl+V or right-click)" -ForegroundColor Gray
+                    Write-Host "========================================" -ForegroundColor Yellow
+                    Write-Host "  MANUAL README PASTE MODE" -ForegroundColor Yellow
+                    Write-Host "========================================" -ForegroundColor Yellow
                     Write-Host ""
+                    Write-Host "OPTION 1 - Use Clipboard (Recommended):" -ForegroundColor Green
+                    Write-Host "  1. Copy the README content from your browser (Ctrl+A, Ctrl+C)" -ForegroundColor Gray
+                    Write-Host "  2. Return to this window" -ForegroundColor Gray
+                    Write-Host "  3. Type 'C' and press Enter to read from clipboard" -ForegroundColor Gray
+                    Write-Host ""
+                    Write-Host "OPTION 2 - Manual Line-by-Line Paste:" -ForegroundColor Green
+                    Write-Host "  1. Type 'M' and press Enter" -ForegroundColor Gray
+                    Write-Host "  2. Paste or type the content" -ForegroundColor Gray
+                    Write-Host "  3. Press Enter twice when done" -ForegroundColor Gray
+                    Write-Host ""
+                    Write-Host "Enter your choice (C for Clipboard, M for Manual): " -NoNewline -ForegroundColor Cyan
+                    $inputMethod = Read-Host
                     
-                    $lines = @()
-                    $emptyLineCount = 0
-                    
-                    while ($true) {
-                        $line = Read-Host
-                        
-                        if ($line -eq "") {
-                            $emptyLineCount++
-                            if ($emptyLineCount -ge 2) {
-                                break
+                    if ($inputMethod -eq 'C' -or $inputMethod -eq 'c') {
+                        # Try to read from clipboard
+                        try {
+                            Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                            $clipContent = [System.Windows.Forms.Clipboard]::GetText()
+                            
+                            if ($clipContent -and $clipContent.Length -gt 10) {
+                                $content = $clipContent
+                                Write-Host ""
+                                Write-Host "✓ Successfully read $($content.Length) characters from clipboard!" -ForegroundColor Green
+                                
+                                # Show preview
+                                $preview = Get-SafePreview -Content $content -MaxLength 200
+                                Write-Host ""
+                                Write-Host "Preview of first 200 characters:" -ForegroundColor Cyan
+                                Write-Host "---" -ForegroundColor Gray
+                                Write-Host $preview -ForegroundColor Gray
+                                Write-Host "---" -ForegroundColor Gray
+                                Write-Host ""
+                                Write-Host "Does this look correct? (Y/N): " -NoNewline -ForegroundColor Yellow
+                                $confirm = Read-Host
+                                
+                                if ($confirm -ne 'Y' -and $confirm -ne 'y') {
+                                    Write-Host "Clipboard content rejected. Please try again." -ForegroundColor Yellow
+                                    return $null
+                                }
+                            } else {
+                                Write-Host ""
+                                Write-Host "ERROR: Clipboard is empty or content is too short!" -ForegroundColor Red
+                                Write-Host "Please copy the README content first, then run this script again." -ForegroundColor Yellow
+                                return $null
                             }
-                        } else {
-                            $emptyLineCount = 0
+                        } catch {
+                            Write-Host ""
+                            Write-Host "ERROR: Could not access clipboard: $_" -ForegroundColor Red
+                            Write-Host "Falling back to manual paste method..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 2
+                            $inputMethod = 'M'
                         }
-                        
-                        $lines += $line
                     }
                     
-                    $content = $lines -join "`n"
+                    if ($inputMethod -eq 'M' -or $inputMethod -eq 'm') {
+                        Write-Host ""
+                        Write-Host "Paste the README content below, then press Enter twice when done:" -ForegroundColor Yellow
+                        Write-Host "(You can paste multiple lines at once with Ctrl+V or right-click)" -ForegroundColor Gray
+                        Write-Host ""
+                        
+                        $lines = @()
+                        $emptyLineCount = 0
+                        
+                        while ($true) {
+                            $line = Read-Host
+                            
+                            if ($line -eq "") {
+                                $emptyLineCount++
+                                if ($emptyLineCount -ge 2) {
+                                    break
+                                }
+                                $lines += $line
+                            } else {
+                                $emptyLineCount = 0
+                                $lines += $line
+                            }
+                        }
+                        
+                        $content = $lines -join "`n"
+                    }
+                    
                     $ReadmePath = "(Manual Input)"
                     
-                    if ($content.Length -lt 10) {
-                        Write-Host "ERROR: No content was pasted!" -ForegroundColor Red
+                    # Validate content
+                    if (-not $content -or $content.Length -lt 10) {
+                        Write-Host ""
+                        Write-Host "ERROR: No content was provided or content is too short!" -ForegroundColor Red
+                        Write-Host "Please ensure you've copied the README content." -ForegroundColor Yellow
                         return $null
                     }
                     
+                    # Clean up any HTML if it was pasted from a web page
+                    if ($content -match '<html|<div|<span|<p>|<br') {
+                        Write-Host ""
+                        Write-Host "Detected HTML content - cleaning up..." -ForegroundColor Cyan
+                        $content = Clean-HtmlContent -HtmlContent $content
+                        Write-Host "HTML cleanup complete!" -ForegroundColor Green
+                    }
+                    
                     Write-Host ""
-                    Write-Host "Received $($content.Length) characters of README content" -ForegroundColor Green
+                    Write-Host "✓ Received $($content.Length) characters of README content" -ForegroundColor Green
+                    
+                    # Count potential sections for validation
+                    $sectionCount = 0
+                    if ($content -match '(?i)user') { $sectionCount++ }
+                    if ($content -match '(?i)software|program') { $sectionCount++ }
+                    if ($content -match '(?i)service') { $sectionCount++ }
+                    if ($content -match '(?i)admin') { $sectionCount++ }
+                    
+                    Write-Host "Detected $sectionCount potential sections (users, software, services, etc.)" -ForegroundColor Cyan
+                    
                 } else {
                     return $null
                 }
@@ -238,38 +463,111 @@ function Parse-CompetitionReadme {
                             
                             if ($response -eq 'Y' -or $response -eq 'y') {
                                 Write-Host ""
-                                Write-Host "Please open $targetUrl in a browser," -ForegroundColor Yellow
-                                Write-Host "copy all the text, then paste it below." -ForegroundColor Yellow
-                                Write-Host "Press Enter twice when done:" -ForegroundColor Yellow
+                                Write-Host "========================================" -ForegroundColor Yellow
+                                Write-Host "  MANUAL README PASTE MODE" -ForegroundColor Yellow
+                                Write-Host "========================================" -ForegroundColor Yellow
                                 Write-Host ""
+                                Write-Host "Target URL: $targetUrl" -ForegroundColor Cyan
+                                Write-Host ""
+                                Write-Host "OPTION 1 - Use Clipboard (Recommended):" -ForegroundColor Green
+                                Write-Host "  1. Open $targetUrl in your browser" -ForegroundColor Gray
+                                Write-Host "  2. Copy all the text (Ctrl+A, Ctrl+C)" -ForegroundColor Gray
+                                Write-Host "  3. Return to this window" -ForegroundColor Gray
+                                Write-Host "  4. Type 'C' and press Enter to read from clipboard" -ForegroundColor Gray
+                                Write-Host ""
+                                Write-Host "OPTION 2 - Manual Line-by-Line Paste:" -ForegroundColor Green
+                                Write-Host "  1. Type 'M' and press Enter" -ForegroundColor Gray
+                                Write-Host "  2. Paste the content" -ForegroundColor Gray
+                                Write-Host "  3. Press Enter twice when done" -ForegroundColor Gray
+                                Write-Host ""
+                                Write-Host "Enter your choice (C for Clipboard, M for Manual): " -NoNewline -ForegroundColor Cyan
+                                $inputMethod = Read-Host
                                 
-                                $lines = @()
-                                $emptyLineCount = 0
-                                
-                                while ($true) {
-                                    $line = Read-Host
-                                    
-                                    if ($line -eq "") {
-                                        $emptyLineCount++
-                                        if ($emptyLineCount -ge 2) {
-                                            break
+                                if ($inputMethod -eq 'C' -or $inputMethod -eq 'c') {
+                                    # Try to read from clipboard
+                                    try {
+                                        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+                                        $clipContent = [System.Windows.Forms.Clipboard]::GetText()
+                                        
+                                        if ($clipContent -and $clipContent.Length -gt 10) {
+                                            $content = $clipContent
+                                            Write-Host ""
+                                            Write-Host "✓ Successfully read $($content.Length) characters from clipboard!" -ForegroundColor Green
+                                            
+                                            # Show preview
+                                            $preview = Get-SafePreview -Content $content -MaxLength 200
+                                            Write-Host ""
+                                            Write-Host "Preview of first 200 characters:" -ForegroundColor Cyan
+                                            Write-Host "---" -ForegroundColor Gray
+                                            Write-Host $preview -ForegroundColor Gray
+                                            Write-Host "---" -ForegroundColor Gray
+                                            Write-Host ""
+                                            Write-Host "Does this look correct? (Y/N): " -NoNewline -ForegroundColor Yellow
+                                            $confirm = Read-Host
+                                            
+                                            if ($confirm -ne 'Y' -and $confirm -ne 'y') {
+                                                Write-Host "Clipboard content rejected. Please try again." -ForegroundColor Yellow
+                                                return $null
+                                            }
+                                        } else {
+                                            Write-Host ""
+                                            Write-Host "ERROR: Clipboard is empty or content is too short!" -ForegroundColor Red
+                                            Write-Host "Please copy the README content first." -ForegroundColor Yellow
+                                            return $null
                                         }
-                                    } else {
-                                        $emptyLineCount = 0
+                                    } catch {
+                                        Write-Host ""
+                                        Write-Host "ERROR: Could not access clipboard: $_" -ForegroundColor Red
+                                        Write-Host "Falling back to manual paste method..." -ForegroundColor Yellow
+                                        Start-Sleep -Seconds 2
+                                        $inputMethod = 'M'
                                     }
-                                    
-                                    $lines += $line
                                 }
                                 
-                                $content = $lines -join "`n"
+                                if ($inputMethod -eq 'M' -or $inputMethod -eq 'm') {
+                                    Write-Host ""
+                                    Write-Host "Paste the README content below, then press Enter twice when done:" -ForegroundColor Yellow
+                                    Write-Host "(You can paste multiple lines at once with Ctrl+V or right-click)" -ForegroundColor Gray
+                                    Write-Host ""
+                                    
+                                    $lines = @()
+                                    $emptyLineCount = 0
+                                    
+                                    while ($true) {
+                                        $line = Read-Host
+                                        
+                                        if ($line -eq "") {
+                                            $emptyLineCount++
+                                            if ($emptyLineCount -ge 2) {
+                                                break
+                                            }
+                                            $lines += $line
+                                        } else {
+                                            $emptyLineCount = 0
+                                            $lines += $line
+                                        }
+                                    }
+                                    
+                                    $content = $lines -join "`n"
+                                }
                                 
-                                if ($content.Length -lt 10) {
-                                    Write-Host "ERROR: No content was pasted!" -ForegroundColor Red
+                                # Validate and clean content
+                                if (-not $content -or $content.Length -lt 10) {
+                                    Write-Host ""
+                                    Write-Host "ERROR: No content was provided or content is too short!" -ForegroundColor Red
                                     return $null
                                 }
                                 
+                                # Clean up any HTML if present
+                                if ($content -match '<html|<div|<span|<p>|<br') {
+                                    Write-Host ""
+                                    Write-Host "Detected HTML content - cleaning up..." -ForegroundColor Cyan
+                                    $content = Clean-HtmlContent -HtmlContent $content
+                                    Write-Host "HTML cleanup complete!" -ForegroundColor Green
+                                }
+                                
                                 Write-Host ""
-                                Write-Host "Received $($content.Length) characters of README content" -ForegroundColor Green
+                                Write-Host "✓ Received $($content.Length) characters of README content" -ForegroundColor Green
                             } else {
                                 return $null
                             }
@@ -408,40 +706,80 @@ function Parse-CompetitionReadme {
         
         # Extract data based on current section
         if ($inUserSection) {
-            # Extract usernames (look for patterns like "- username" or "username" or "user: username")
-            if ($line -match "^\s*[-*•]?\s*([a-zA-Z0-9_-]+)\s*(?:\(|$)") {
+            # Enhanced username extraction - handle various formats
+            # Formats: "- username", "* username", "username (description)", "username: description"
+            if ($line -match "^\s*[-*•]\s*([a-zA-Z0-9_\-.]+)") {
                 $username = $matches[1]
-                if ($username -and $username -notmatch "(?i)user|account|password|standard") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
+                    $readmeData.AuthorizedUsers += $username
+                }
+            }
+            # Also try format: "username - description" or "username: description"
+            elseif ($line -match "^\s*([a-zA-Z0-9_\-.]+)\s*[-:]") {
+                $username = $matches[1]
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
+                    $readmeData.AuthorizedUsers += $username
+                }
+            }
+            # Try format: just a username on its own line
+            elseif ($line -match "^([a-zA-Z0-9_\-.]+)$") {
+                $username = $matches[1]
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
                     $readmeData.AuthorizedUsers += $username
                 }
             }
         }
         
         if ($inAdminSection) {
-            # Extract admin usernames
-            if ($line -match "^\s*[-*•]?\s*([a-zA-Z0-9_-]+)\s*(?:\(|$)") {
+            # Enhanced admin extraction
+            if ($line -match "^\s*[-*•]\s*([a-zA-Z0-9_\-.]+)") {
                 $username = $matches[1]
-                if ($username -and $username -notmatch "(?i)admin|administrator|account|password") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
+                    $readmeData.Administrators += $username
+                }
+            }
+            elseif ($line -match "^\s*([a-zA-Z0-9_\-.]+)\s*[-:]") {
+                $username = $matches[1]
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
+                    $readmeData.Administrators += $username
+                }
+            }
+            elseif ($line -match "^([a-zA-Z0-9_\-.]+)$") {
+                $username = $matches[1]
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
                     $readmeData.Administrators += $username
                 }
             }
         }
         
         if ($inSoftwareSection) {
-            # Extract allowed software names
-            if ($line -match "^\s*[-*•]?\s*(.+?)(?:\s*\(|$)") {
+            # Enhanced software extraction - handle various formats
+            if ($line -match "^\s*[-*•]\s*(.+?)(?:\s*\(|:|$)") {
                 $software = $matches[1].Trim()
-                if ($software -and $software.Length -gt 2 -and $software -notmatch "(?i)^software|^program") {
+                if (Test-ValidExtractedItem -ItemName $software -ItemType 'software' -MinLength 2) {
+                    $readmeData.AllowedSoftware += $software
+                }
+            }
+            elseif ($line -match "^(.+?)(?:\s*-\s*|\s*:\s*)") {
+                $software = $matches[1].Trim()
+                if (Test-ValidExtractedItem -ItemName $software -ItemType 'software' -MinLength 2) {
                     $readmeData.AllowedSoftware += $software
                 }
             }
         }
         
         if ($inServiceSection) {
-            # Extract required service names
-            if ($line -match "^\s*[-*•]?\s*(.+?)(?:\s*\(|$)") {
+            # Enhanced service extraction
+            if ($line -match "^\s*[-*•]\s*(.+?)(?:\s*\(|:|$)") {
                 $service = $matches[1].Trim()
-                if ($service -and $service.Length -gt 2 -and $service -notmatch "(?i)^service|^required") {
+                if (Test-ValidExtractedItem -ItemName $service -ItemType 'service' -MinLength 2) {
+                    $readmeData.RequiredServices += $service
+                    $readmeData.CriticalServices += $service
+                }
+            }
+            elseif ($line -match "^(.+?)(?:\s*-\s*|\s*:\s*)") {
+                $service = $matches[1].Trim()
+                if (Test-ValidExtractedItem -ItemName $service -ItemType 'service' -MinLength 2) {
                     $readmeData.RequiredServices += $service
                     $readmeData.CriticalServices += $service
                 }

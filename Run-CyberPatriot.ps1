@@ -28,30 +28,36 @@ function Show-Menu {
     
     Write-Host "================ $Title ================" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "RECOMMENDED WORKFLOW:" -ForegroundColor Green
-    Write-Host "  0. Analyze README (Extract competition requirements)"
-    Write-Host "  1. Run Quick Audit (Fast scan of current state)"
-    Write-Host "  2. Run Security Hardening (Automated fixes)"
-    Write-Host "  3. Run File Auditor (Find files to delete)"
-    Write-Host "  4. Run User Auditor (Review accounts)"
-    Write-Host "  5. Windows Update (RUN THIS LAST!)"
+    Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║   RECOMMENDED WORKFLOW (Step-by-Step)  ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "  Step 0: Analyze README (Extract requirements)" -ForegroundColor Green
+    Write-Host "  Step 1: Quick Audit (See current state)" -ForegroundColor Green
+    Write-Host "  Step 2: Security Hardening (Auto-fix issues)" -ForegroundColor Green
+    Write-Host "  Step 3: File Auditor (Find bad files)" -ForegroundColor Green
+    Write-Host "  Step 4: User Auditor (Check accounts)" -ForegroundColor Green
+    Write-Host "  Step 5: Windows Update (DO THIS LAST!)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Magenta
+    Write-Host "║  QUICK START: Press [R] to run all!   ║" -ForegroundColor Magenta
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Magenta
     Write-Host ""
     Write-Host "INDIVIDUAL SCRIPTS:" -ForegroundColor Green
-    Write-Host "  [0] Analyze README - Parse competition requirements"
-    Write-Host "  [Q] Quick Audit - Fast overview of security issues"
-    Write-Host "  [A] Security Hardening - Run CyberPatriot-Auto.ps1"
-    Write-Host "  [S] Server Hardening - Run ServerHardening.ps1 (Windows Server only)"
-    Write-Host "  [F] File Auditor - Scan for unauthorized files/software"
-    Write-Host "  [U] User Auditor - Review user accounts and groups"
+    Write-Host "  [0] Analyze README - Parse competition requirements" -ForegroundColor White
+    Write-Host "  [Q] Quick Audit - Fast overview of security issues" -ForegroundColor White
+    Write-Host "  [A] Security Hardening - Run CyberPatriot-Auto.ps1" -ForegroundColor White
+    Write-Host "  [S] Server Hardening - Run ServerHardening.ps1 (Windows Server only)" -ForegroundColor White
+    Write-Host "  [F] File Auditor - Scan for unauthorized files/software" -ForegroundColor White
+    Write-Host "  [U] User Auditor - Review user accounts and groups" -ForegroundColor White
     Write-Host ""
     Write-Host "UTILITIES:" -ForegroundColor Green
-    Write-Host "  [L] View all log files"
-    Write-Host "  [C] Open checklist folder"
-    Write-Host "  [H] Open Quick Start guide"
-    Write-Host "  [W] Run Windows Update (DO THIS LAST!)"
+    Write-Host "  [L] View all log files" -ForegroundColor White
+    Write-Host "  [C] Open checklist folder" -ForegroundColor White
+    Write-Host "  [H] Open Quick Start guide" -ForegroundColor White
+    Write-Host "  [W] Run Windows Update (DO THIS LAST!)" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  [R] Run all recommended tasks (0-4 in sequence)"
-    Write-Host "  [X] Exit"
+    Write-Host "  [R] ⭐ Run all recommended tasks (0-4 in sequence)" -ForegroundColor Cyan
+    Write-Host "  [X] Exit" -ForegroundColor Gray
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Yellow
 }
@@ -141,31 +147,60 @@ function Run-QuickAudit {
 }
 
 function Run-SecurityHardening {
-    Write-Host "`n[*] Launching Security Hardening Script..." -ForegroundColor Cyan
+    Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║  Launching Security Hardening Script   ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "This tool will:" -ForegroundColor Yellow
+    Write-Host "  • Enable Windows Firewall" -ForegroundColor Gray
+    Write-Host "  • Configure password policies" -ForegroundColor Gray
+    Write-Host "  • Disable insecure services" -ForegroundColor Gray
+    Write-Host "  • Block vulnerable ports" -ForegroundColor Gray
+    Write-Host "  • Enable Windows Defender" -ForegroundColor Gray
+    Write-Host ""
+    
     $autoScript = Join-Path $ScriptPath "CyberPatriot-Auto.ps1"
     
     if (Test-Path $autoScript) {
         & $autoScript
+        Write-Host ""
+        Write-Host "✓ Security hardening complete!" -ForegroundColor Green
     } else {
-        Write-Host "ERROR: CyberPatriot-Auto.ps1 not found!" -ForegroundColor Red
+        Write-Host "❌ ERROR: CyberPatriot-Auto.ps1 not found!" -ForegroundColor Red
         Write-Host "Expected location: $autoScript" -ForegroundColor Red
-        Write-Host "Press any key to continue..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     }
+    
+    Write-Host ""
+    Write-Host "Press any key to continue..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function Run-AnalyzeReadme {
-    Write-Host "`n[*] Launching README Analyzer..." -ForegroundColor Cyan
+    Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║  Launching README Analyzer...          ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "This tool will:" -ForegroundColor Yellow
+    Write-Host "  • Find the competition README file or shortcut" -ForegroundColor Gray
+    Write-Host "  • Download content from web if it's a .lnk shortcut" -ForegroundColor Gray
+    Write-Host "  • Allow manual paste if auto-download fails" -ForegroundColor Gray
+    Write-Host "  • Extract authorized users, software, and services" -ForegroundColor Gray
+    Write-Host ""
+    
     $readmeScript = Join-Path $ScriptPath "AnalyzeReadme.ps1"
     
     if (Test-Path $readmeScript) {
         & $readmeScript
+        Write-Host ""
+        Write-Host "✓ README analysis complete!" -ForegroundColor Green
     } else {
-        Write-Host "ERROR: AnalyzeReadme.ps1 not found!" -ForegroundColor Red
+        Write-Host "❌ ERROR: AnalyzeReadme.ps1 not found!" -ForegroundColor Red
         Write-Host "Expected location: $readmeScript" -ForegroundColor Red
-        Write-Host "Press any key to continue..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     }
+    
+    Write-Host ""
+    Write-Host "Press any key to continue..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function Run-ServerHardening {
@@ -183,31 +218,63 @@ function Run-ServerHardening {
 }
 
 function Run-FileAuditor {
-    Write-Host "`n[*] Launching File Auditor..." -ForegroundColor Cyan
+    Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║  Launching File Auditor                ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "This tool will:" -ForegroundColor Yellow
+    Write-Host "  • Scan for unauthorized software" -ForegroundColor Gray
+    Write-Host "  • Find media files (music, videos)" -ForegroundColor Gray
+    Write-Host "  • Check for suspicious processes" -ForegroundColor Gray
+    Write-Host "  • Review startup items" -ForegroundColor Gray
+    Write-Host "  • Generate audit report" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "⚠️  Note: This tool only reports findings - you must delete files manually!" -ForegroundColor Yellow
+    Write-Host ""
+    
     $fileAuditScript = Join-Path $ScriptPath "FileAuditor.ps1"
     
     if (Test-Path $fileAuditScript) {
         & $fileAuditScript
+        Write-Host ""
+        Write-Host "✓ File audit complete!" -ForegroundColor Green
     } else {
-        Write-Host "ERROR: FileAuditor.ps1 not found!" -ForegroundColor Red
+        Write-Host "❌ ERROR: FileAuditor.ps1 not found!" -ForegroundColor Red
         Write-Host "Expected location: $fileAuditScript" -ForegroundColor Red
-        Write-Host "Press any key to continue..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     }
+    
+    Write-Host ""
+    Write-Host "Press any key to continue..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function Run-UserAuditor {
-    Write-Host "`n[*] Launching User Auditor..." -ForegroundColor Cyan
+    Write-Host "`n╔════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║  Launching User Auditor                ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "This tool will:" -ForegroundColor Yellow
+    Write-Host "  • List all user accounts" -ForegroundColor Gray
+    Write-Host "  • Check against authorized users from README" -ForegroundColor Gray
+    Write-Host "  • Show group memberships" -ForegroundColor Gray
+    Write-Host "  • Verify admin access" -ForegroundColor Gray
+    Write-Host "  • Check password policies" -ForegroundColor Gray
+    Write-Host ""
+    
     $userAuditScript = Join-Path $ScriptPath "UserAuditor.ps1"
     
     if (Test-Path $userAuditScript) {
         & $userAuditScript
+        Write-Host ""
+        Write-Host "✓ User audit complete!" -ForegroundColor Green
     } else {
-        Write-Host "ERROR: UserAuditor.ps1 not found!" -ForegroundColor Red
+        Write-Host "❌ ERROR: UserAuditor.ps1 not found!" -ForegroundColor Red
         Write-Host "Expected location: $userAuditScript" -ForegroundColor Red
-        Write-Host "Press any key to continue..."
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     }
+    
+    Write-Host ""
+    Write-Host "Press any key to continue..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function View-AllLogs {
@@ -293,36 +360,67 @@ function Run-WindowsUpdate {
 
 function Run-AllTasks {
     Write-Host "`n" 
-    Write-Host "========================================" -ForegroundColor Magenta
-    Write-Host "  RUNNING ALL RECOMMENDED TASKS" -ForegroundColor Magenta
-    Write-Host "========================================" -ForegroundColor Magenta
+    Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Magenta
+    Write-Host "║  RUNNING ALL RECOMMENDED TASKS         ║" -ForegroundColor Magenta
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Magenta
     Write-Host ""
+    Write-Host "This will run the following in sequence:" -ForegroundColor Cyan
+    Write-Host "  ✓ Step 0: Analyze README" -ForegroundColor Gray
+    Write-Host "  ✓ Step 1: Quick Audit" -ForegroundColor Gray
+    Write-Host "  ✓ Step 2: Security Hardening" -ForegroundColor Gray
+    Write-Host "  ✓ Step 3: File Auditor" -ForegroundColor Gray
+    Write-Host "  ✓ Step 4: User Auditor" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "⏱️  Estimated time: 5-10 minutes" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Press any key to start, or Ctrl+C to cancel..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     
-    Write-Host "[0/5] Analyzing README..." -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "[STEP 0/5] Analyzing README..." -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
     Run-AnalyzeReadme
-    
-    Write-Host "`n[1/5] Running Quick Audit..." -ForegroundColor Cyan
-    Run-QuickAudit
-    
-    Write-Host "`n[2/5] Running Security Hardening..." -ForegroundColor Cyan
-    Run-SecurityHardening
-    
-    Write-Host "`n[3/5] Running File Auditor..." -ForegroundColor Cyan
-    Run-FileAuditor
-    
-    Write-Host "`n[4/5] Running User Auditor..." -ForegroundColor Cyan
-    Run-UserAuditor
-    
-    Write-Host "`n" 
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host "  AUTOMATED TASKS COMPLETE!" -ForegroundColor Green
-    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "✓ Step 0 complete!" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "  1. Review the log files" -ForegroundColor Gray
-    Write-Host "  2. Delete unauthorized files found by File Auditor" -ForegroundColor Gray
-    Write-Host "  3. Adjust user accounts as needed" -ForegroundColor Gray
-    Write-Host "  4. Complete manual tasks from checklist" -ForegroundColor Gray
+    
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "[STEP 1/5] Running Quick Audit..." -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Run-QuickAudit
+    Write-Host "✓ Step 1 complete!" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "[STEP 2/5] Running Security Hardening..." -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Run-SecurityHardening
+    Write-Host "✓ Step 2 complete!" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "[STEP 3/5] Running File Auditor..." -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Run-FileAuditor
+    Write-Host "✓ Step 3 complete!" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "[STEP 4/5] Running User Auditor..." -ForegroundColor Cyan
+    Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+    Run-UserAuditor
+    Write-Host "✓ Step 4 complete!" -ForegroundColor Green
+    Write-Host ""
+    
+    Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Green
+    Write-Host "║    AUTOMATED TASKS COMPLETE! ✓         ║" -ForegroundColor Green
+    Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "📋 NEXT STEPS:" -ForegroundColor Yellow
+    Write-Host "  1. ✓ Review the log files (Option L)" -ForegroundColor Gray
+    Write-Host "  2. ✓ Delete unauthorized files found by File Auditor" -ForegroundColor Gray
+    Write-Host "  3. ✓ Adjust user accounts as needed" -ForegroundColor Gray
+    Write-Host "  4. ✓ Complete manual tasks from checklist" -ForegroundColor Gray
     Write-Host "  5. ⚠️  RUN WINDOWS UPDATE (Option W) - DO THIS LAST!" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Press any key to return to menu..."
