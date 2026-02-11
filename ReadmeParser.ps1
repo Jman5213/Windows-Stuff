@@ -10,6 +10,42 @@
     This parser handles common README formats from CyberPatriot competitions
 #>
 
+function Get-SafePreview {
+    <#
+    .SYNOPSIS
+        Safely gets a preview of text content, handling multi-byte characters
+    .PARAMETER Content
+        The content to preview
+    .PARAMETER MaxLength
+        Maximum length for preview (default: 200)
+    #>
+    param(
+        [string]$Content,
+        [int]$MaxLength = 200
+    )
+    
+    if (-not $Content) {
+        return ""
+    }
+    
+    if ($Content.Length -le $MaxLength) {
+        return $Content
+    }
+    
+    # Get substring safely, then trim to avoid breaking multi-byte sequences
+    try {
+        $preview = $Content.Substring(0, $MaxLength)
+        # Trim any trailing incomplete characters by removing last character if it's not alphanumeric
+        if ($preview.Length -gt 0 -and $preview[-1] -notmatch '[a-zA-Z0-9\s\.\,\;\:]') {
+            $preview = $preview.Substring(0, $preview.Length - 1)
+        }
+        return $preview
+    } catch {
+        # Fallback: just take first MaxLength characters safely
+        return $Content.Substring(0, [Math]::Min($MaxLength, $Content.Length))
+    }
+}
+
 function Test-ValidExtractedItem {
     <#
     .SYNOPSIS
@@ -112,8 +148,8 @@ function Clean-HtmlContent {
         param($match)
         try {
             $num = [int]$match.Groups[1].Value
-            # Validate range for basic multilingual plane (0-65535)
-            if ($num -ge 0 -and $num -le 65535) {
+            # Validate range for 16-bit Unicode (0-65535), excluding surrogate pairs (0xD800-0xDFFF)
+            if ($num -ge 0 -and $num -le 65535 -and ($num -lt 0xD800 -or $num -gt 0xDFFF)) {
                 return [char]$num
             } else {
                 return ' '  # Replace invalid entities with space
@@ -294,7 +330,7 @@ function Parse-CompetitionReadme {
                                 Write-Host "✓ Successfully read $($content.Length) characters from clipboard!" -ForegroundColor Green
                                 
                                 # Show preview
-                                $preview = $content.Substring(0, [Math]::Min(200, $content.Length))
+                                $preview = Get-SafePreview -Content $content -MaxLength 200
                                 Write-Host ""
                                 Write-Host "Preview of first 200 characters:" -ForegroundColor Cyan
                                 Write-Host "---" -ForegroundColor Gray
@@ -459,7 +495,7 @@ function Parse-CompetitionReadme {
                                             Write-Host "✓ Successfully read $($content.Length) characters from clipboard!" -ForegroundColor Green
                                             
                                             # Show preview
-                                            $preview = $content.Substring(0, [Math]::Min(200, $content.Length))
+                                            $preview = Get-SafePreview -Content $content -MaxLength 200
                                             Write-Host ""
                                             Write-Host "Preview of first 200 characters:" -ForegroundColor Cyan
                                             Write-Host "---" -ForegroundColor Gray
