@@ -47,15 +47,24 @@ This repository contains an automated PowerShell script for CyberPatriot competi
    .\UserAuditor.ps1           # Review user accounts
    ```
 
-## 🆕 NEW: README Parser
+## 🆕 NEW: Smart README Parser
 
 The suite now automatically reads the competition README to avoid false positives!
 
-**Supports:**
+**Supports Multiple Input Methods:**
 - Text files (.txt, .md)
 - **Desktop shortcuts (.lnk)** that point to websites
 - Internet shortcuts (.url)
-- **Manual paste** if auto-download fails
+- **Smart clipboard paste** (recommended for manual input)
+- Line-by-line manual paste as fallback
+- **Automatic HTML cleanup** when pasting from web pages
+
+**Advanced Features:**
+- **Intelligent clipboard support**: Copy README from browser, paste directly from clipboard
+- **HTML auto-detection and cleanup**: Automatically removes HTML tags and formats content
+- **Enhanced pattern matching**: Smarter extraction of users, software, and services
+- **Content validation**: Preview and confirm pasted content before processing
+- **Multiple format support**: Handles plain text, markdown, HTML, and mixed formats
 
 **Extracts:**
 - Authorized users and administrators
@@ -67,9 +76,12 @@ The suite now automatically reads the competition README to avoid false positive
 
 **How to use:**
 1. Place README file/shortcut on Desktop (or it will auto-find it)
-2. Run `.\AnalyzeReadme.ps1` first
-3. If download fails, paste content manually when prompted
-4. Other scripts automatically use the parsed data
+2. Run `.\AnalyzeReadme.ps1` first (or use the Master Control menu)
+3. If download fails:
+   - **Option 1 (Recommended)**: Copy README in browser (Ctrl+A, Ctrl+C), choose 'C' for clipboard paste
+   - **Option 2**: Choose 'M' for manual line-by-line paste
+4. The parser will automatically clean HTML and validate the content
+5. Other scripts automatically use the parsed data
 
 ## 📋 Features
 
@@ -153,7 +165,17 @@ Windows-Stuff/
 
 ## 🎮 Master Control Script (Run-CyberPatriot.ps1)
 
-The **Run-CyberPatriot.ps1** script is your main entry point. It provides:
+The **Run-CyberPatriot.ps1** script is your main entry point with an enhanced, user-friendly interface!
+
+**New Features:**
+- **Visual workflow guide**: Clear step-by-step instructions with progress indicators
+- **One-click automation**: Press [R] to run all recommended tasks in sequence
+- **Smart progress tracking**: Visual separators and completion confirmations
+- **Helpful descriptions**: Each tool shows what it does before running
+- **Error handling**: Clear error messages with troubleshooting guidance
+- **Estimated time**: Shows expected duration for "Run All" sequence
+
+**Features:**
 - Interactive menu for easy navigation
 - README analyzer (first step!)
 - Quick audit to assess current security state
