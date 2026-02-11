@@ -10,6 +10,127 @@
     This parser handles common README formats from CyberPatriot competitions
 #>
 
+function Test-ValidExtractedItem {
+    <#
+    .SYNOPSIS
+        Validates extracted items (usernames, software, services) against common filters
+    .PARAMETER ItemName
+        The item to validate
+    .PARAMETER ItemType
+        The type of item: 'username', 'software', or 'service'
+    .PARAMETER MinLength
+        Minimum length (default: 3)
+    .PARAMETER MaxLength
+        Maximum length (default: 100)
+    #>
+    param(
+        [string]$ItemName,
+        [string]$ItemType = 'generic',
+        [int]$MinLength = 3,
+        [int]$MaxLength = 100
+    )
+    
+    # Validation checks
+    if (-not $ItemName -or $ItemName.Length -lt $MinLength -or $ItemName.Length -gt $MaxLength) {
+        return $false
+    }
+    
+    # Define noise words for each type
+    $noiseWords = @{
+        'username' = @('user', 'account', 'password', 'standard', 'name', 'login', 'full', 'first', 'last', 'the', 'this', 'that', 'and', 'or', 'with')
+        'admin' = @('admin', 'administrator', 'account', 'password', 'user', 'the', 'this', 'that', 'and', 'or', 'with')
+        'software' = @('software', 'program', 'application', 'installed', 'allowed', 'authorized', 'permitted')
+        'service' = @('service', 'required', 'critical', 'running', 'started')
+    }
+    
+    # Get appropriate noise words for the type
+    $filterWords = if ($noiseWords.ContainsKey($ItemType)) {
+        $noiseWords[$ItemType]
+    } else {
+        @()
+    }
+    
+    # Check if item matches any noise word (case insensitive)
+    foreach ($word in $filterWords) {
+        if ($ItemName -match "^$word$") {
+            return $false
+        }
+    }
+    
+    return $true
+}
+
+function Clean-HtmlContent {
+    <#
+    .SYNOPSIS
+        Cleans HTML content and converts it to plain text
+    .PARAMETER HtmlContent
+        The HTML content to clean
+    #>
+    param(
+        [string]$HtmlContent
+    )
+    
+    if (-not $HtmlContent) {
+        return ""
+    }
+    
+    # Remove script and style tags first
+    $cleaned = $HtmlContent -replace '<script[^>]*>.*?</script>', ''
+    $cleaned = $cleaned -replace '<style[^>]*>.*?</style>', ''
+    
+    # Preserve common structural elements by adding newlines
+    $cleaned = $cleaned -replace '<br\s*/?>', "`n"
+    $cleaned = $cleaned -replace '<p\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</p>', "`n"
+    $cleaned = $cleaned -replace '<div\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</div>', "`n"
+    $cleaned = $cleaned -replace '<li\s*[^>]*>', "`n- "
+    $cleaned = $cleaned -replace '</li>', "`n"
+    $cleaned = $cleaned -replace '<h[1-6][^>]*>', "`n"
+    $cleaned = $cleaned -replace '</h[1-6]>', "`n"
+    $cleaned = $cleaned -replace '<tr\s*[^>]*>', "`n"
+    $cleaned = $cleaned -replace '</tr>', "`n"
+    
+    # Remove all remaining HTML tags
+    $cleaned = $cleaned -replace '<[^>]+>', ' '
+    
+    # Decode HTML entities
+    $cleaned = $cleaned -replace '&nbsp;', ' '
+    $cleaned = $cleaned -replace '&amp;', '&'
+    $cleaned = $cleaned -replace '&lt;', '<'
+    $cleaned = $cleaned -replace '&gt;', '>'
+    $cleaned = $cleaned -replace '&quot;', '"'
+    $cleaned = $cleaned -replace '&#39;', "'"
+    $cleaned = $cleaned -replace '&apos;', "'"
+    $cleaned = $cleaned -replace '&mdash;', '-'
+    $cleaned = $cleaned -replace '&ndash;', '-'
+    $cleaned = $cleaned -replace '&bull;', '•'
+    
+    # Handle numeric entities with validation
+    $cleaned = $cleaned -replace '&#(\d+);', {
+        param($match)
+        try {
+            $num = [int]$match.Groups[1].Value
+            # Validate range for basic multilingual plane (0-65535)
+            if ($num -ge 0 -and $num -le 65535) {
+                return [char]$num
+            } else {
+                return ' '  # Replace invalid entities with space
+            }
+        } catch {
+            return ' '  # Replace on conversion error
+        }
+    }
+    
+    # Clean up extra whitespace while preserving structure
+    $cleaned = $cleaned -replace '[ \t]+', ' '
+    $cleaned = $cleaned -replace ' *\n *', "`n"
+    $cleaned = $cleaned -replace '\n\s*\n\s*\n+', "`n`n"
+    
+    return $cleaned.Trim()
+}
+
 function Get-ShortcutTarget {
     <#
     .SYNOPSIS
@@ -59,50 +180,10 @@ function Download-WebContent {
         # Use Invoke-WebRequest to download the content
         $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30
         
-        # Try to extract text from HTML
-        $content = $response.Content
+        # Use the helper function to clean HTML
+        $content = Clean-HtmlContent -HtmlContent $response.Content
         
-        # Enhanced HTML cleanup for better parsing
-        # Remove script and style tags first
-        $content = $content -replace '<script[^>]*>.*?</script>', ''
-        $content = $content -replace '<style[^>]*>.*?</style>', ''
-        
-        # Preserve common structural elements by adding newlines
-        $content = $content -replace '<br\s*/?>', "`n"
-        $content = $content -replace '<p\s*[^>]*>', "`n"
-        $content = $content -replace '</p>', "`n"
-        $content = $content -replace '<div\s*[^>]*>', "`n"
-        $content = $content -replace '</div>', "`n"
-        $content = $content -replace '<li\s*[^>]*>', "`n- "
-        $content = $content -replace '</li>', "`n"
-        $content = $content -replace '<h[1-6][^>]*>', "`n"
-        $content = $content -replace '</h[1-6]>', "`n"
-        $content = $content -replace '<tr\s*[^>]*>', "`n"
-        $content = $content -replace '</tr>', "`n"
-        
-        # Remove all remaining HTML tags
-        $content = $content -replace '<[^>]+>', ' '
-        
-        # Decode HTML entities more comprehensively
-        $content = $content -replace '&nbsp;', ' '
-        $content = $content -replace '&amp;', '&'
-        $content = $content -replace '&lt;', '<'
-        $content = $content -replace '&gt;', '>'
-        $content = $content -replace '&quot;', '"'
-        $content = $content -replace '&#39;', "'"
-        $content = $content -replace '&apos;', "'"
-        $content = $content -replace '&mdash;', '-'
-        $content = $content -replace '&ndash;', '-'
-        $content = $content -replace '&bull;', '•'
-        $content = $content -replace '&#8226;', '•'
-        $content = $content -replace '&#(\d+);', { param($m) [char][int]$m.Groups[1].Value }
-        
-        # Clean up extra whitespace while preserving structure
-        $content = $content -replace '[ \t]+', ' '
-        $content = $content -replace ' *\n *', "`n"
-        $content = $content -replace '\n\s*\n\s*\n+', "`n`n"
-        
-        return $content.Trim()
+        return $content
     } catch {
         Write-Host "Error downloading content: $_" -ForegroundColor Red
         return $null
@@ -283,36 +364,7 @@ function Parse-CompetitionReadme {
                     if ($content -match '<html|<div|<span|<p>|<br') {
                         Write-Host ""
                         Write-Host "Detected HTML content - cleaning up..." -ForegroundColor Cyan
-                        
-                        # Apply HTML cleanup
-                        $content = $content -replace '<script[^>]*>.*?</script>', ''
-                        $content = $content -replace '<style[^>]*>.*?</style>', ''
-                        $content = $content -replace '<br\s*/?>', "`n"
-                        $content = $content -replace '<p\s*[^>]*>', "`n"
-                        $content = $content -replace '</p>', "`n"
-                        $content = $content -replace '<div\s*[^>]*>', "`n"
-                        $content = $content -replace '</div>', "`n"
-                        $content = $content -replace '<li\s*[^>]*>', "`n- "
-                        $content = $content -replace '</li>', "`n"
-                        $content = $content -replace '<h[1-6][^>]*>', "`n"
-                        $content = $content -replace '</h[1-6]>', "`n"
-                        $content = $content -replace '<[^>]+>', ' '
-                        
-                        # Decode HTML entities
-                        $content = $content -replace '&nbsp;', ' '
-                        $content = $content -replace '&amp;', '&'
-                        $content = $content -replace '&lt;', '<'
-                        $content = $content -replace '&gt;', '>'
-                        $content = $content -replace '&quot;', '"'
-                        $content = $content -replace '&#39;', "'"
-                        $content = $content -replace '&bull;', '•'
-                        
-                        # Clean up whitespace
-                        $content = $content -replace '[ \t]+', ' '
-                        $content = $content -replace ' *\n *', "`n"
-                        $content = $content -replace '\n\s*\n\s*\n+', "`n`n"
-                        $content = $content.Trim()
-                        
+                        $content = Clean-HtmlContent -HtmlContent $content
                         Write-Host "HTML cleanup complete!" -ForegroundColor Green
                     }
                     
@@ -474,31 +526,7 @@ function Parse-CompetitionReadme {
                                 if ($content -match '<html|<div|<span|<p>|<br') {
                                     Write-Host ""
                                     Write-Host "Detected HTML content - cleaning up..." -ForegroundColor Cyan
-                                    
-                                    $content = $content -replace '<script[^>]*>.*?</script>', ''
-                                    $content = $content -replace '<style[^>]*>.*?</style>', ''
-                                    $content = $content -replace '<br\s*/?>', "`n"
-                                    $content = $content -replace '<p\s*[^>]*>', "`n"
-                                    $content = $content -replace '</p>', "`n"
-                                    $content = $content -replace '<div\s*[^>]*>', "`n"
-                                    $content = $content -replace '</div>', "`n"
-                                    $content = $content -replace '<li\s*[^>]*>', "`n- "
-                                    $content = $content -replace '</li>', "`n"
-                                    $content = $content -replace '<[^>]+>', ' '
-                                    
-                                    $content = $content -replace '&nbsp;', ' '
-                                    $content = $content -replace '&amp;', '&'
-                                    $content = $content -replace '&lt;', '<'
-                                    $content = $content -replace '&gt;', '>'
-                                    $content = $content -replace '&quot;', '"'
-                                    $content = $content -replace '&#39;', "'"
-                                    $content = $content -replace '&bull;', '•'
-                                    
-                                    $content = $content -replace '[ \t]+', ' '
-                                    $content = $content -replace ' *\n *', "`n"
-                                    $content = $content -replace '\n\s*\n\s*\n+', "`n`n"
-                                    $content = $content.Trim()
-                                    
+                                    $content = Clean-HtmlContent -HtmlContent $content
                                     Write-Host "HTML cleanup complete!" -ForegroundColor Green
                                 }
                                 
@@ -646,25 +674,21 @@ function Parse-CompetitionReadme {
             # Formats: "- username", "* username", "username (description)", "username: description"
             if ($line -match "^\s*[-*•]\s*([a-zA-Z0-9_\-.]+)") {
                 $username = $matches[1]
-                # Filter out common section headers and noise words
-                if ($username -and $username.Length -ge 3 -and 
-                    $username -notmatch "(?i)^(user|account|password|standard|name|login|full|first|last)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
                     $readmeData.AuthorizedUsers += $username
                 }
             }
             # Also try format: "username - description" or "username: description"
             elseif ($line -match "^\s*([a-zA-Z0-9_\-.]+)\s*[-:]") {
                 $username = $matches[1]
-                if ($username -and $username.Length -ge 3 -and 
-                    $username -notmatch "(?i)^(user|account|password|standard|name|login|full|first|last)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
                     $readmeData.AuthorizedUsers += $username
                 }
             }
             # Try format: just a username on its own line
             elseif ($line -match "^([a-zA-Z0-9_\-.]+)$") {
                 $username = $matches[1]
-                if ($username -and $username.Length -ge 3 -and $username.Length -le 20 -and
-                    $username -notmatch "(?i)^(user|account|password|standard|name|login|full|first|last|the|this|that|and|or|with)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'username' -MaxLength 20) {
                     $readmeData.AuthorizedUsers += $username
                 }
             }
@@ -674,22 +698,19 @@ function Parse-CompetitionReadme {
             # Enhanced admin extraction
             if ($line -match "^\s*[-*•]\s*([a-zA-Z0-9_\-.]+)") {
                 $username = $matches[1]
-                if ($username -and $username.Length -ge 3 -and 
-                    $username -notmatch "(?i)^(admin|administrator|account|password|user)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
                     $readmeData.Administrators += $username
                 }
             }
             elseif ($line -match "^\s*([a-zA-Z0-9_\-.]+)\s*[-:]") {
                 $username = $matches[1]
-                if ($username -and $username.Length -ge 3 -and 
-                    $username -notmatch "(?i)^(admin|administrator|account|password|user)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
                     $readmeData.Administrators += $username
                 }
             }
             elseif ($line -match "^([a-zA-Z0-9_\-.]+)$") {
                 $username = $matches[1]
-                if ($username -and $username.Length -ge 3 -and $username.Length -le 20 -and
-                    $username -notmatch "(?i)^(admin|administrator|account|password|user|the|this|that|and|or|with)$") {
+                if (Test-ValidExtractedItem -ItemName $username -ItemType 'admin' -MaxLength 20) {
                     $readmeData.Administrators += $username
                 }
             }
@@ -699,15 +720,13 @@ function Parse-CompetitionReadme {
             # Enhanced software extraction - handle various formats
             if ($line -match "^\s*[-*•]\s*(.+?)(?:\s*\(|:|$)") {
                 $software = $matches[1].Trim()
-                if ($software -and $software.Length -gt 2 -and $software.Length -le 100 -and 
-                    $software -notmatch "(?i)^(software|program|application|installed|allowed|authorized|permitted)$") {
+                if (Test-ValidExtractedItem -ItemName $software -ItemType 'software' -MinLength 2) {
                     $readmeData.AllowedSoftware += $software
                 }
             }
             elseif ($line -match "^(.+?)(?:\s*-\s*|\s*:\s*)") {
                 $software = $matches[1].Trim()
-                if ($software -and $software.Length -gt 2 -and $software.Length -le 100 -and 
-                    $software -notmatch "(?i)^(software|program|application|installed|allowed|authorized|permitted)$") {
+                if (Test-ValidExtractedItem -ItemName $software -ItemType 'software' -MinLength 2) {
                     $readmeData.AllowedSoftware += $software
                 }
             }
@@ -717,16 +736,14 @@ function Parse-CompetitionReadme {
             # Enhanced service extraction
             if ($line -match "^\s*[-*•]\s*(.+?)(?:\s*\(|:|$)") {
                 $service = $matches[1].Trim()
-                if ($service -and $service.Length -gt 2 -and $service.Length -le 100 -and 
-                    $service -notmatch "(?i)^(service|required|critical|running|started)$") {
+                if (Test-ValidExtractedItem -ItemName $service -ItemType 'service' -MinLength 2) {
                     $readmeData.RequiredServices += $service
                     $readmeData.CriticalServices += $service
                 }
             }
             elseif ($line -match "^(.+?)(?:\s*-\s*|\s*:\s*)") {
                 $service = $matches[1].Trim()
-                if ($service -and $service.Length -gt 2 -and $service.Length -le 100 -and 
-                    $service -notmatch "(?i)^(service|required|critical|running|started)$") {
+                if (Test-ValidExtractedItem -ItemName $service -ItemType 'service' -MinLength 2) {
                     $readmeData.RequiredServices += $service
                     $readmeData.CriticalServices += $service
                 }
